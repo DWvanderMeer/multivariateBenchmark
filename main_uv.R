@@ -6,15 +6,16 @@ library(ggplot2)
 # Inputs
 #################################################################################
 dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
+dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
 station <- c("bon", "dra", "fpk", "gwn", "psu", "sxf", "tbl")
 tz <- c(-5, -7, -6, -5, -4, -5, -6)
-source("~/Desktop/Drive/research/mvBenchmark/functions.R")
+#source("~/Desktop/Drive/research/mvBenchmark/functions.R")
 K <- 0 # forecast horizon (CH-PeEn is independent of horizon)
 zen_angle <- 85 # maximum zenith angle
 M <- 20 # number of ensemble members
 #################################################################################
 
-years <- seq(2015, 2013, by = -1) # 2005
+years <- seq(2015, 2005, by = -1)
 yrs = list()
 for(i in 1:(length(years)-1)){ yrs[[i]] <- years[(i-1) + 1:2] }
 
@@ -118,13 +119,19 @@ for(stn in 1:length(station)){ # Loop over the stations
 }
 
 pit_hist <- do.call(rbind,pit_hist)
-write.table(pit_hist, file = "~/Desktop/Drive/research/mvBenchmark/results/pit_histograms.txt",
+# write.table(pit_hist, file = "~/Desktop/Drive/research/mvBenchmark/results/pit_histograms.txt",
+#             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(pit_hist, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/pit_histograms.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
 
 num_score_1 <- do.call(rbind,num_score_1)
-write.table(num_score_1, file = "~/Desktop/Drive/research/mvBenchmark/results/crps_Ineichen.txt",
+# write.table(num_score_1, file = "~/Desktop/Drive/research/mvBenchmark/results/crps_Ineichen.txt",
+#             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(num_score_1, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/crps_Ineichen.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
 
 num_score_2 <- do.call(rbind,num_score_2)
-write.table(num_score_2, file = "~/Desktop/Drive/research/mvBenchmark/results/crps_McClear.txt",
+# write.table(num_score_2, file = "~/Desktop/Drive/research/mvBenchmark/results/crps_McClear.txt",
+#             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(num_score_2, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/crps_McClear.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
