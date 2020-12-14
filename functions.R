@@ -1,3 +1,10 @@
+#################################################################################
+# This code is written by Dennis van der Meer
+# Uppsala University, Department of Civil and Industrial Engineering
+# Division of Civil Engineering and Built Environment
+# email: dennis.vandermeer@angstrom.uu.se
+#################################################################################
+
 # Functions
 
 # To combine after parallel run

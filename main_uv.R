@@ -1,6 +1,11 @@
+#################################################################################
+# This code is written by Dennis van der Meer
+# Uppsala University, Department of Civil and Industrial Engineering
+# Division of Civil Engineering and Built Environment
+# email: dennis.vandermeer@angstrom.uu.se
+#################################################################################
+
 library(dplyr)
-library(lubridate)
-library(ggplot2)
 
 #################################################################################
 # Inputs
@@ -55,7 +60,7 @@ for(stn in 1:length(station)){ # Loop over the stations
   for(j in 1:length(yrs)){
     cat(sprintf("<Running SCRIPT for station = %s, using data from years %s -- %s>\n", station[stn], yrs[[j]][2], yrs[[j]][1]))
     
-    select <- which(year(surfrad_all$Time) %in% yrs[[j]])
+    select <- which(lubridate::year(surfrad_all$Time) %in% yrs[[j]])
     # Historical forecasts (observations of the train years:
     surfrad_fit <- surfrad_all[select,]
     CSI1 <- surfrad_fit$dw_solar/surfrad_fit$Ineichen # CSI using Ineichen-Perez
