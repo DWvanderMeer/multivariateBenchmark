@@ -13,7 +13,7 @@ library(doParallel)
 # Inputs
 #################################################################################
 dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
-# dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
+dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
 station <- c("bon", "dra", "fpk", "gwn", "psu", "sxf", "tbl")#
 tz <- c(-5, -7, -6, -5, -4, -5, -6)
 K <- 0 # forecast horizon (CH-PeEn is independent of horizon)
@@ -147,7 +147,7 @@ write.table(pit_hist, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/res
             sep = "\t", row.names = FALSE, col.names = TRUE)
 
 crps <- do.call(rbind,do.call(rbind,script[[2]]))
-# write.table(crps, file = "~/Desktop/Drive/research/mvBenchmark/results/crps_Ineichen.txt",
+# write.table(crps, file = "~/Desktop/Drive/research/mvBenchmark/results/crps.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
-write.table(crps, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/crps_Ineichen.txt",
+write.table(crps, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/crps.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
