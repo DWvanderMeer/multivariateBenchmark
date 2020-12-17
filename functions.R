@@ -8,8 +8,9 @@
 # Functions
 
 # To combine after parallel run
-comb <- function(...) {
-  mapply('rbind', ..., SIMPLIFY=FALSE)
+comb <- function(x, ...) {
+  lapply(seq_along(x),
+         function(i) c(x[[i]], lapply(list(...), function(y) y[[i]])))
 }
 
 ## Minimum spanning tree ranks 

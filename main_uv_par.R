@@ -12,7 +12,7 @@ library(doParallel)
 #################################################################################
 # Inputs
 #################################################################################
-dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
+# dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
 dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
 station <- c("bon", "dra", "fpk", "gwn", "psu", "sxf", "tbl")#
 tz <- c(-5, -7, -6, -5, -4, -5, -6)
@@ -22,11 +22,6 @@ zen_angle <- 85 # maximum zenith angle
 
 cl <- makeCluster(length(station))
 registerDoParallel(cl)
-
-comb <- function(x, ...) {
-  lapply(seq_along(x),
-         function(i) c(x[[i]], lapply(list(...), function(y) y[[i]])))
-}
 
 years <- seq(2015, 2005, by = -1)
 # years <- seq(2012, 2010, by = -1) # For experiments
