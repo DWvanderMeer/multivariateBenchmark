@@ -8,11 +8,12 @@
 library(dplyr)
 library(lubridate)
 library(ggplot2)
-#
+
 #################################################################################
 # Inputs
 #################################################################################
 dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
+# dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
 station <- c("bon", "dra", "fpk", "gwn", "psu", "sxf", "tbl")
 tz <- c(-5, -7, -6, -5, -4, -5, -6)
 source("~/Desktop/Drive/research/mvBenchmark/functions.R")
@@ -64,14 +65,16 @@ for(stn in 1:length(station)){ # Loop over the stations
   #################################################################################
   # crps_bin1 = crps_bin2 <- array(NA, length(yrs))
   for(j in 1:length(yrs)){
-    cat(sprintf("<Running SCRIPT for station = %s, using data from years %s -- %s>\n", station[stn], yrs[[j]][2], yrs[[j]][1]))
+    # cat(sprintf("<Running SCRIPT for station = %s, using data from years %s -- %s>\n", station[stn], yrs[[j]][2], yrs[[j]][1]))
     
     select <- which(year(surfrad_all$Time) %in% yrs[[j]])
     # Historical forecasts (observations of the train years:
     surfrad_fit <- surfrad_all[select,]
     CSI1 <- surfrad_fit$dw_solar/surfrad_fit$Ineichen # CSI using Ineichen-Perez
+    CSI1 <- ifelse(CSI1 > 1.5, 1.5, CSI1)
     CSI1 <- data.table::shift(CSI1,n=K,type="lead"); CSI1 <- do.call(cbind,CSI1) # Create historical vector forecasts
     CSI2 <- surfrad_fit$dw_solar/surfrad_fit$McClear # CSI using McClear
+    CSI2 <- ifelse(CSI2 > 1.5, 1.5, CSI2)
     CSI2 <- data.table::shift(CSI2,n=K,type="lead"); CSI2 <- do.call(cbind,CSI2) # Create historical vector forecasts
     zen <- data.table::shift(surfrad_fit$zen,n=K,type="lead"); zen <- do.call(cbind,zen) # Create zenith mask
     idx_zen <- zen <= zen_angle # Create zenith mask
@@ -89,7 +92,7 @@ for(stn in 1:length(station)){ # Loop over the stations
     
     lst1 = lst2 <- list() # Store the results for each clear-sky model separately
     es1 = es2 = vs1 = vs2 <- NULL # Numerical scores
-    set.seed(123)
+    set.seed(123) # Set seed for pseudo random ensemble members
     i <- 1 # Counter in case a t iteration is skipped 
     for(t in 1:nrow(OBS1)){ # Loop over the test set
       ob <- OBS1[t,] # Get the t-th observations
@@ -166,15 +169,23 @@ for(stn in 1:length(station)){ # Loop over the stations
 res_1 <- do.call(rbind,rank_histograms1)
 write.table(res_1, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_Ineichen.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
+# write.table(res_1, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_Ineichen.txt",
+#             sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_2 <- do.call(rbind,rank_histograms2)
 write.table(res_2, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_McClear.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
+# write.table(res_2, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_McClear.txt",
+#             sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_3 <- do.call(rbind,num_score_1)
 write.table(res_3, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_Ineichen.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
+# write.table(res_3, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_Ineichen.txt",
+#             sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_4 <- do.call(rbind,num_score_2)
 write.table(res_4, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_McClear.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
+# write.table(res_4, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_McClear.txt",
+#             sep = "\t", row.names = FALSE, col.names = TRUE)
