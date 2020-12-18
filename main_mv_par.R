@@ -14,12 +14,12 @@ library(doParallel)
 #################################################################################
 # Inputs
 #################################################################################
-dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
-# dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
-station <- c("bon", "dra", "fpk")#, "gwn", "psu", "sxf", "tbl"
+# dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
+dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
+station <- c("bon", "dra", "fpk", "gwn", "psu", "sxf", "tbl")
 tz <- c(-5, -7, -6, -5, -4, -5, -6)
-source("~/Desktop/Drive/research/mvBenchmark/scripts/functions.R")
-# source("C:/Users/denva787/Documents/dennis/mvBenchmark/scripts/functions.R")
+# source("~/Desktop/Drive/research/mvBenchmark/scripts/functions.R")
+source("C:/Users/denva787/Documents/dennis/mvBenchmark/scripts/functions.R")
 K <- seq(1,24,1) # forecast horizon
 zen_angle <- 85 # maximum zenith angle
 M <- 20 # number of ensemble members
@@ -29,7 +29,7 @@ cl <- makeCluster(length(station))
 registerDoParallel(cl)
 
 years <- seq(2015, 2005, by = -1)
-years <- seq(2012, 2010, by = -1) # For experiments
+# years <- seq(2012, 2010, by = -1) # For experiments
 yrs = list()
 for(i in 1:(length(years)-1)){ yrs[[i]] <- years[(i-1) + 1:2] }
 
@@ -161,10 +161,10 @@ script <- foreach(stn = 1:length(station), .combine='comb', .multicombine=TRUE,
                       rank_histograms1[[z]] <- rbind(avghist1,bdhhist1,msthist1)
                       rank_histograms2[[z]] <- rbind(avghist2,bdhhist2,msthist2)
                       # Energy score and variogram score:
-                      num_score_1[[z]] <- data.frame(es=mean(es1),vs=mean(vs1),
+                      num_score_1[[z]] <- data.frame(es=mean(do.call(c,es1)),vs=mean(do.call(c,vs1)),
                                                      years=paste(yrs[[j]][2],"-",yrs[[j]][1],sep=""),
                                                      station=toupper(station[stn]))
-                      num_score_2[[z]] <- data.frame(es=mean(es2),vs=mean(vs2),
+                      num_score_2[[z]] <- data.frame(es=mean(do.call(c,es2)),vs=mean(do.call(c,vs2)),
                                                      years=paste(yrs[[j]][2],"-",yrs[[j]][1],sep=""),
                                                      station=toupper(station[stn]))
                       
@@ -180,28 +180,28 @@ stopCluster(cl)
 # res_1 = rank histograms Ineichen, res_2 = rank histograms McClear,
 # res_3 = numerical scores Ineichen, res_4 = numerical scores McClear.
 res_1 <- do.call(rbind,do.call(rbind,script[[1]]))
-write.table(res_1, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_Ineichen.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_1, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_Ineichen.txt",
+# write.table(res_1, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_Ineichen.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_1, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_Ineichen.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_2 <- do.call(rbind,do.call(rbind,script[[2]]))
-write.table(res_2, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_McClear.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_2, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_McClear.txt",
+# write.table(res_2, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_McClear.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_2, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_McClear.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_3 <- do.call(rbind,do.call(rbind,script[[3]]))
-write.table(res_3, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_Ineichen.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_3, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_Ineichen.txt",
+# write.table(res_3, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_Ineichen.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_3, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_Ineichen.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_4 <- do.call(rbind,do.call(rbind,script[[4]]))
-write.table(res_4, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_McClear.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_4, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_McClear.txt",
+# write.table(res_4, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_McClear.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_4, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_McClear.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
 
 
