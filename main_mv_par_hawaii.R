@@ -28,7 +28,8 @@ M <- 20 # number of ensemble members
 # Load data
 #################################################################################
 # Load McClear data, can be downloaded here: http://www.soda-pro.com/fr/web-services/radiation/cams-mcclear
-mcclear <- read.csv(file = "~/Desktop/mcclear_hawaii.csv", skip = 37, sep = ";")
+mcclear <- read.csv(file = "~/Desktop/Drive/research/mvBenchmark/data/mcclear_hawaii.csv", skip = 37, sep = ";")
+mcclear <- read.csv(file = "C:/Users/denva787/Documents/dennis/mvBenchmark/data/mcclear_hawaii.csv", skip = 37, sep = ";")
 mcclear <- subset(mcclear, select = c(X..Observation.period,Clear.sky.GHI))
 colnames(mcclear) <- c("Time","McClear")
 mcclear$McClear <- 4*mcclear$McClear # Data is Wh/m2 and 15 min resolution
@@ -39,6 +40,8 @@ mcclear$Time <- do.call(c, tmp)
 mcclear <- mcclear %>% mutate(Time = Time-tz*3600) # Adjust UTC to local time zone.
 # Load Hawaii data:
 dat <- read.table(file = "~/Desktop/Drive/research/mvBenchmark/data/hawaii.txt",
+                  header = T, sep = "\t")
+dat <- read.table(file = "C:/Users/denva787/Documents/dennis/mvBenchmark/data/hawaii.txt",
                   header = T, sep = "\t")
 dat$Time <- as.POSIXct(dat$Time, format = "%Y-%m-%d %H:%M:%S", tz = "UTC") # Not actually UTC but for simplicity
 mcclear <- mcclear[mcclear$Time %in% dat$Time,] # Subset mcclear so that it covers the same period.
@@ -145,7 +148,7 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, .ini
                     es1 = es2 = vs1 = vs2 <- NULL # Numerical scores
                     set.seed(123) # Set seed for pseudo random ensemble members
                     i <- 1 # Counter in case a t iteration is skipped 
-                    for(t in 1:5){#nrow(OBS1)){ # Loop over the test set
+                    for(t in 1:nrow(OBS1)){ # Loop over the test set
                       ob <- OBS1[t,] # Get the t-th observations
                       ci1 <- ICS1[ICS1$Time == ob$Time,] # Get the clear-sky irradiance for the coming observations
                       ci2 <- ICS2[ICS2$Time == ob$Time,] # Get the clear-sky irradiance for the coming observations
@@ -222,26 +225,26 @@ stopCluster(cl)
 
 # Combine and store results:
 res_1 <- do.call(rbind,script[[1]])
-write.table(res_1, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_Ineichen_Hawaii.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_1, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_Ineichen_Hawaii.txt",
+# write.table(res_1, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_Ineichen_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_1, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_Ineichen_Hawaii.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_2 <- do.call(rbind,script[[2]])
-write.table(res_2, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_McClear_Hawaii.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_2, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_McClear_Hawaii.txt",
+# write.table(res_2, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_McClear_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_2, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_McClear_Hawaii.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_3 <- do.call(rbind,script[[3]])
-write.table(res_3, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_Ineichen_Hawaii.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_3, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_Ineichen_Hawaii.txt",
+# write.table(res_3, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_Ineichen_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_3, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_Ineichen_Hawaii.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
 res_4 <- do.call(rbind,script[[4]])
-write.table(res_4, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_McClear_Hawaii.txt",
-            sep = "\t", row.names = FALSE, col.names = TRUE)
-# write.table(res_4, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_McClear_Hawaii.txt",
+# write.table(res_4, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_McClear_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
+write.table(res_4, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_McClear_Hawaii.txt",
+            sep = "\t", row.names = FALSE, col.names = TRUE)
 
