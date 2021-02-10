@@ -14,11 +14,8 @@ library(doParallel)
 #################################################################################
 # Inputs
 #################################################################################
-# dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
-# dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
 source("~/Desktop/Drive/research/mvBenchmark/scripts/functions.R")
-# source("C:/Users/denva787/Documents/dennis/mvBenchmark/scripts/functions.R")
-tz <- -10 # Time zone difference between Hawaii and UTC
+source("C:/Users/denva787/Documents/dennis/mvBenchmark/scripts/functions.R")
 K <- seq(1,24,1) # forecast horizon
 zen_angle <- 85 # maximum zenith angle
 M <- 20 # number of ensemble members
@@ -37,24 +34,24 @@ datetime <- strsplit(mcclear$Time,"/") # Split the observation period character 
 tmp <- NULL # Convert the end of the period to posixct format
 for(i in 1:length(datetime)){tmp[[i]] <- as.POSIXct(datetime[[i]][2], format = "%Y-%m-%dT%H:%M:%S", tz = "UTC")}
 mcclear$Time <- do.call(c, tmp)
-mcclear <- mcclear %>% mutate(Time = Time-tz*3600) # Adjust UTC to local time zone.
+attributes(mcclear$Time)$tzone <- "HST" # Hawaii standard time
 # Load Hawaii data:
 dat <- read.table(file = "~/Desktop/Drive/research/mvBenchmark/data/hawaii.txt",
                   header = T, sep = "\t")
 dat <- read.table(file = "C:/Users/denva787/Documents/dennis/mvBenchmark/data/hawaii.txt",
                   header = T, sep = "\t")
-dat$Time <- as.POSIXct(dat$Time, format = "%Y-%m-%d %H:%M:%S", tz = "UTC") # Not actually UTC but for simplicity
+dat$Time <- as.POSIXct(dat$Time, format = "%Y-%m-%d %H:%M:%S", tz = "HST") # Not actually UTC but for simplicity
 mcclear <- mcclear[mcclear$Time %in% dat$Time,] # Subset mcclear so that it covers the same period.
 dat <- subset(dat,select = -AP3) # AP3 contains many 0 values (for some reason)
 dat <- tibble::add_column(dat, McClear = mcclear$McClear, .after = 3)
-dat <- tibble::add_column(dat, tod = strftime(dat$Time, format = "%H:%M", tz = "UTC"), .after = 5)
+dat <- tibble::add_column(dat, tod = strftime(dat$Time, format = "%H:%M", tz = "HST"), .after = 5)
 ns <- ncol(dat)-6 # Number of stations (16) is ncol minus time/zen/Ics/McClear/Ioh/tod columns
 #################################################################################
 
 # Define training and testing data
-month <- seq(9, 4, by = -1)
+month <- seq(10, 4, by = -1)
 mnths = list()
-for(i in 1:(length(month)-1)){ mnths[[i]] <- month[(i-1) + 1:2] } # Test months
+for(i in 1:(length(month)-2)){ mnths[[i]] <- month[(i-1) + 1:3] } # Test months
 year <- 2011 # Test year
 
 # Prepare multiprocessing
@@ -63,9 +60,9 @@ registerDoParallel(cl)
 
 rank_histograms1 = rank_histograms2 <- list() # To store the rank histograms
 num_score_1 = num_score_2 <- list() # To store the numerical scores ES and VS
-# .combine='comb', .multicombine=FALSE,
-# .init=list(list(),list(),list(),list()),
-script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, .init=list(list(),list(),list(),list()), .packages = 'dplyr') %dopar% { # Loop over the months
+
+script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, 
+                  .init=list(list(),list(),list(),list()), .packages = 'dplyr') %dopar% { # Loop over the months
                     
                     idx <- (lubridate::year(dat$Time) %in% year & 
                               lubridate::month(dat$Time) %in% mnths[[j]]) # This should be the iterable
@@ -104,7 +101,7 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, .ini
                     ICS1 <- ICS1[ICS1$zen < zen_angle,] # Remove rows with zenith angle lower than limit
                     ICS1 <- ICS1[complete.cases(ICS1),] # Remove rows with NAs
                     ICS1 <- ICS1[idx_zero,] # Remove rows that are zero in the observations OBS1.
-                    ICS2 <- data.frame(subset(te_dat,select = c("Time","zen","Ics","tod")),ICS2)
+                    ICS2 <- data.frame(subset(te_dat,select = c("Time","zen","McClear","tod")),ICS2)
                     ICS2 <- ICS2[ICS2$zen < zen_angle,] # Remove rows with zenith angle lower than limit
                     ICS2 <- ICS2[complete.cases(ICS2),] # Remove rows with NAs
                     ICS2 <- ICS2[idx_zero,] # Remove rows that are zero in the observations OBS1.
@@ -142,7 +139,7 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, .ini
                     FCS2[FCS2==0] <- NA
                     FCS2 <- FCS2[complete.cases(FCS2),] # Remove rows based on zenith angle and potential zero values
                     
-                    time_fit <- strftime(FCS1$Time, format = "%H:%M", tz = "UTC") # UTC because tz is set manually
+                    time_fit <- strftime(FCS1$Time, format = "%H:%M", tz = "HST") # Hawwaii standard time
                     
                     lst1 = lst2 <- list() # Store the results for each clear-sky model separately
                     es1 = es2 = vs1 = vs2 <- NULL # Numerical scores
@@ -163,8 +160,8 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, .ini
                       ob <- as.matrix(ob[,((ncol(ob)-max(K)*ns+1):ncol(ob))]) # Take only the observation vector
                       ci1 <- as.matrix(ci1[,((ncol(ci1)-max(K)*ns+1):ncol(ci1))]) # Take only the clear-sky irradiance vector
                       ci2 <- as.matrix(ci2[,((ncol(ci2)-max(K)*ns+1):ncol(ci2))]) # Take only the clear-sky irradiance vector
-                      fc1 <- as.matrix(fc1[,((ncol(fc1)-max(K)*ns+1):ncol(fc1))]) # Take only teh forecast matrix
-                      fc2 <- as.matrix(fc2[,((ncol(fc2)-max(K)*ns+1):ncol(fc2))]) # Take only teh forecast matrix
+                      fc1 <- as.matrix(fc1[,((ncol(fc1)-max(K)*ns+1):ncol(fc1))]) # Take only the forecast matrix
+                      fc2 <- as.matrix(fc2[,((ncol(fc2)-max(K)*ns+1):ncol(fc2))]) # Take only the forecast matrix
                       # Randomly select M ensemble forecasts
                       rows <- sample(nrow(fc1))[1:M]
                       fc1 <- fc1[rows,]; fc2 <- fc2[rows,]
@@ -186,36 +183,36 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, .ini
                     # Rank histograms:
                     avghist1 <- avg.rhist(lst1,M) # Average rank histogram based on Ineichen clear-sky
                     avghist1 <- data.frame(mids=avghist1$mids,counts=avghist1$counts,
-                                           months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""),
+                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
                                            prerank="AVG")
                     avghist2 <- avg.rhist(lst2,M) # Average rank histogram based on McClear clear-sky
                     avghist2 <- data.frame(mids=avghist2$mids,counts=avghist2$counts,
-                                           months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""),
+                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
                                            prerank="AVG")
                     bdhhist1 <- bd.rhist(lst1,M) # Band depth rank histogram based on Ineichen clear-sky
                     bdhhist1 <- data.frame(mids=bdhhist1$mids,counts=bdhhist1$counts,
-                                           months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""),
+                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
                                            prerank="BDH")
                     bdhhist2 <- bd.rhist(lst2,M) # Band depth rank histogram based on McClear clear-sky
                     bdhhist2 <- data.frame(mids=bdhhist2$mids,counts=bdhhist2$counts,
-                                           months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""),
+                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
                                            prerank="BDH")
                     msthist1 <- mst.rhist(lst1,M) # Minimum spinning tree rank histogram based on Ineichen clear-sky
                     msthist1 <- data.frame(mids=msthist1$mids,counts=msthist1$counts,
-                                           months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""),
+                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
                                            prerank="MST")
                     msthist2 <- mst.rhist(lst2,M) # Minimum spinning tree rank histogram based on McClear clear-sky
                     msthist2 <- data.frame(mids=msthist2$mids,counts=msthist2$counts,
-                                           months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""),
+                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
                                            prerank="MST")
                     # Store rank histograms:
                     rank_histograms1 <- rbind(avghist1,bdhhist1,msthist1)
                     rank_histograms2 <- rbind(avghist2,bdhhist2,msthist2)
                     # Energy score and variogram score:
                     num_score_1 <- data.frame(es=mean(do.call(c,es1)),vs=mean(do.call(c,vs1)),
-                                                   months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""))
+                                                   months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
                     num_score_2 <- data.frame(es=mean(do.call(c,es2)),vs=mean(do.call(c,vs2)),
-                                                   months=paste(mnths[[j]][2],"-",mnths[[j]][1],sep=""))
+                                                   months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
                     # Output results:
                     list(rank_histograms1,rank_histograms2,
                          num_score_1,num_score_2)
