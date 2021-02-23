@@ -18,7 +18,7 @@ source("~/Desktop/Drive/research/mvBenchmark/scripts/functions.R")
 source("C:/Users/denva787/Documents/dennis/mvBenchmark/scripts/functions.R")
 K <- seq(1,24,1) # forecast horizon
 zen_angle <- 85 # maximum zenith angle
-M <- 20 # number of ensemble members
+M <- seq(20,100,20) # number of ensemble members
 #################################################################################
 
 #################################################################################
@@ -60,6 +60,7 @@ registerDoParallel(cl)
 
 rank_histograms1 = rank_histograms2 <- list() # To store the rank histograms
 num_score_1 = num_score_2 <- list() # To store the numerical scores ES and VS
+z <- 1
 
 script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, 
                   .init=list(list(),list(),list(),list()), .packages = 'dplyr') %dopar% { # Loop over the months
@@ -143,76 +144,89 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE,
                     
                     lst1 = lst2 <- list() # Store the results for each clear-sky model separately
                     es1 = es2 = vs1 = vs2 <- NULL # Numerical scores
-                    set.seed(123) # Set seed for pseudo random ensemble members
-                    i <- 1 # Counter in case a t iteration is skipped 
-                    for(t in 1:nrow(OBS1)){ # Loop over the test set
-                      ob <- OBS1[t,] # Get the t-th observations
-                      ci1 <- ICS1[ICS1$Time == ob$Time,] # Get the clear-sky irradiance for the coming observations
-                      ci2 <- ICS2[ICS2$Time == ob$Time,] # Get the clear-sky irradiance for the coming observations
-                      fc1 <- FCS1[which(time_fit==ob$tod),] # Get the historical 1..K observations.
-                      fc2 <- FCS2[which(time_fit==ob$tod),] # Get the historical 1..K observations.
+                    
+                    for(m in M){
+                      set.seed(123) # Set seed for pseudo random ensemble members
+                      i <- 1 # Counter in case a t iteration is skipped 
+                      for(t in 1:nrow(OBS1)){ # Loop over the test set
+                        ob <- OBS1[t,] # Get the t-th observations
+                        ci1 <- ICS1[ICS1$Time == ob$Time,] # Get the clear-sky irradiance for the coming observations
+                        ci2 <- ICS2[ICS2$Time == ob$Time,] # Get the clear-sky irradiance for the coming observations
+                        fc1 <- FCS1[which(time_fit==ob$tod),] # Get the historical 1..K observations.
+                        fc2 <- FCS2[which(time_fit==ob$tod),] # Get the historical 1..K observations.
+                        
+                        # If the lengths of the ensembles are too short, the observation rank is per definition 
+                        # low, resulting in left skewed rank histograms. That's why we skip here. Note that this
+                        # limit varies per location, depending on seasonal variation. How about normalizing the ranks?
+                        if(nrow(fc1) < m) next 
+                        
+                        ob <- as.matrix(ob[,((ncol(ob)-max(K)*ns+1):ncol(ob))]) # Take only the observation vector
+                        ci1 <- as.matrix(ci1[,((ncol(ci1)-max(K)*ns+1):ncol(ci1))]) # Take only the clear-sky irradiance vector
+                        ci2 <- as.matrix(ci2[,((ncol(ci2)-max(K)*ns+1):ncol(ci2))]) # Take only the clear-sky irradiance vector
+                        fc1 <- as.matrix(fc1[,((ncol(fc1)-max(K)*ns+1):ncol(fc1))]) # Take only the forecast matrix
+                        fc2 <- as.matrix(fc2[,((ncol(fc2)-max(K)*ns+1):ncol(fc2))]) # Take only the forecast matrix
+                        # Randomly select M ensemble forecasts
+                        rows <- sample(nrow(fc1))[1:m]
+                        fc1 <- fc1[rows,]; fc2 <- fc2[rows,]
+                        
+                        fc1 <- sweep(fc1, MARGIN=2, ci1, `*`) # Matrix by vector multiplication for GHI
+                        fc2 <- sweep(fc2, MARGIN=2, ci2, `*`) # Matrix by vector multiplication for GHI
+                        
+                        # For rank histograms:
+                        B1 <- rbind(ob,fc1); B2 <- rbind(ob,fc2) 
+                        lst1[[i]] <- B1; lst2[[i]] <- B2
+                        # For numerical scores:
+                        es1[[i]] <- scoringRules::es_sample(y=ob[1,],dat=t(fc1))
+                        es2[[i]] <- scoringRules::es_sample(y=ob[1,],dat=t(fc2))
+                        vs1[[i]] <- scoringRules::vs_sample(y=ob[1,],dat=t(fc1),p=0.5) # p recommended by SCHEUERER AND HAMILL
+                        vs2[[i]] <- scoringRules::vs_sample(y=ob[1,],dat=t(fc2),p=0.5) # p recommended by SCHEUERER AND HAMILL
+                        i <- i + 1
+                      }
                       
-                      # If the lengths of the ensembles are too short, the observation rank is per definition 
-                      # low, resulting in left skewed rank histograms. That's why we skip here. Note that this
-                      # limit varies per location, depending on seasonal variation. How about normalizing the ranks?
-                      if(nrow(fc1) < M) next 
-                      
-                      ob <- as.matrix(ob[,((ncol(ob)-max(K)*ns+1):ncol(ob))]) # Take only the observation vector
-                      ci1 <- as.matrix(ci1[,((ncol(ci1)-max(K)*ns+1):ncol(ci1))]) # Take only the clear-sky irradiance vector
-                      ci2 <- as.matrix(ci2[,((ncol(ci2)-max(K)*ns+1):ncol(ci2))]) # Take only the clear-sky irradiance vector
-                      fc1 <- as.matrix(fc1[,((ncol(fc1)-max(K)*ns+1):ncol(fc1))]) # Take only the forecast matrix
-                      fc2 <- as.matrix(fc2[,((ncol(fc2)-max(K)*ns+1):ncol(fc2))]) # Take only the forecast matrix
-                      # Randomly select M ensemble forecasts
-                      rows <- sample(nrow(fc1))[1:M]
-                      fc1 <- fc1[rows,]; fc2 <- fc2[rows,]
-                      
-                      fc1 <- sweep(fc1, MARGIN=2, ci1, `*`) # Matrix by vector multiplication for GHI
-                      fc2 <- sweep(fc2, MARGIN=2, ci2, `*`) # Matrix by vector multiplication for GHI
-                      
-                      # For rank histograms:
-                      B1 <- rbind(ob,fc1); B2 <- rbind(ob,fc2) 
-                      lst1[[i]] <- B1; lst2[[i]] <- B2
-                      # For numerical scores:
-                      es1[[i]] <- scoringRules::es_sample(y=ob[1,],dat=t(fc1))
-                      es2[[i]] <- scoringRules::es_sample(y=ob[1,],dat=t(fc2))
-                      vs1[[i]] <- scoringRules::vs_sample(y=ob[1,],dat=t(fc1),p=0.5) # p recommended by SCHEUERER AND HAMILL
-                      vs2[[i]] <- scoringRules::vs_sample(y=ob[1,],dat=t(fc2),p=0.5) # p recommended by SCHEUERER AND HAMILL
-                      i <- i + 1
+                      # Rank histograms:
+                      avghist1 <- avg.rhist(lst1,m) # Average rank histogram based on Ineichen clear-sky
+                      avghist1 <- data.frame(mids=avghist1$mids,counts=avghist1$counts,
+                                             members = m,
+                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             prerank="AVG")
+                      avghist2 <- avg.rhist(lst2,m) # Average rank histogram based on McClear clear-sky
+                      avghist2 <- data.frame(mids=avghist2$mids,counts=avghist2$counts,
+                                             members = m,
+                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             prerank="AVG")
+                      bdhhist1 <- bd.rhist(lst1,m) # Band depth rank histogram based on Ineichen clear-sky
+                      bdhhist1 <- data.frame(mids=bdhhist1$mids,counts=bdhhist1$counts,
+                                             members = m,
+                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             prerank="BDH")
+                      bdhhist2 <- bd.rhist(lst2,m) # Band depth rank histogram based on McClear clear-sky
+                      bdhhist2 <- data.frame(mids=bdhhist2$mids,counts=bdhhist2$counts,
+                                             members = m,
+                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             prerank="BDH")
+                      msthist1 <- mst.rhist(lst1,m) # Minimum spinning tree rank histogram based on Ineichen clear-sky
+                      msthist1 <- data.frame(mids=msthist1$mids,counts=msthist1$counts,
+                                             members = m,
+                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             prerank="MST")
+                      msthist2 <- mst.rhist(lst2,m) # Minimum spinning tree rank histogram based on McClear clear-sky
+                      msthist2 <- data.frame(mids=msthist2$mids,counts=msthist2$counts,
+                                             members = m,
+                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             prerank="MST")
+                      # Store rank histograms:
+                      rank_histograms1[[z]] <- rbind(avghist1,bdhhist1,msthist1)
+                      rank_histograms2[[z]] <- rbind(avghist2,bdhhist2,msthist2)
+                      # Energy score and variogram score:
+                      num_score_1[[z]] <- data.frame(es=mean(do.call(c,es1)),vs=mean(do.call(c,vs1)),
+                                                     members = m,
+                                                     months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
+                      num_score_2[[z]] <- data.frame(es=mean(do.call(c,es2)),vs=mean(do.call(c,vs2)),
+                                                     members = m,
+                                                     months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
+                      z <- z + 1 # Iterations over ensemble member combinations
                     }
                     
-                    # Rank histograms:
-                    avghist1 <- avg.rhist(lst1,M) # Average rank histogram based on Ineichen clear-sky
-                    avghist1 <- data.frame(mids=avghist1$mids,counts=avghist1$counts,
-                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
-                                           prerank="AVG")
-                    avghist2 <- avg.rhist(lst2,M) # Average rank histogram based on McClear clear-sky
-                    avghist2 <- data.frame(mids=avghist2$mids,counts=avghist2$counts,
-                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
-                                           prerank="AVG")
-                    bdhhist1 <- bd.rhist(lst1,M) # Band depth rank histogram based on Ineichen clear-sky
-                    bdhhist1 <- data.frame(mids=bdhhist1$mids,counts=bdhhist1$counts,
-                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
-                                           prerank="BDH")
-                    bdhhist2 <- bd.rhist(lst2,M) # Band depth rank histogram based on McClear clear-sky
-                    bdhhist2 <- data.frame(mids=bdhhist2$mids,counts=bdhhist2$counts,
-                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
-                                           prerank="BDH")
-                    msthist1 <- mst.rhist(lst1,M) # Minimum spinning tree rank histogram based on Ineichen clear-sky
-                    msthist1 <- data.frame(mids=msthist1$mids,counts=msthist1$counts,
-                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
-                                           prerank="MST")
-                    msthist2 <- mst.rhist(lst2,M) # Minimum spinning tree rank histogram based on McClear clear-sky
-                    msthist2 <- data.frame(mids=msthist2$mids,counts=msthist2$counts,
-                                           months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
-                                           prerank="MST")
-                    # Store rank histograms:
-                    rank_histograms1 <- rbind(avghist1,bdhhist1,msthist1)
-                    rank_histograms2 <- rbind(avghist2,bdhhist2,msthist2)
-                    # Energy score and variogram score:
-                    num_score_1 <- data.frame(es=mean(do.call(c,es1)),vs=mean(do.call(c,vs1)),
-                                                   months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
-                    num_score_2 <- data.frame(es=mean(do.call(c,es2)),vs=mean(do.call(c,vs2)),
-                                                   months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
                     # Output results:
                     list(rank_histograms1,rank_histograms2,
                          num_score_1,num_score_2)
@@ -221,25 +235,25 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE,
 stopCluster(cl)
 
 # Combine and store results:
-res_1 <- do.call(rbind,script[[1]])
+res_1 <- do.call(rbind,do.call(rbind,script[[1]]))
 # write.table(res_1, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_Ineichen_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
 write.table(res_1, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_Ineichen_Hawaii.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
 
-res_2 <- do.call(rbind,script[[2]])
+res_2 <- do.call(rbind,do.call(rbind,script[[2]]))
 # write.table(res_2, file = "~/Desktop/Drive/research/mvBenchmark/results/rank_histograms_McClear_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
 write.table(res_2, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/rank_histograms_McClear_Hawaii.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
 
-res_3 <- do.call(rbind,script[[3]])
+res_3 <- do.call(rbind,do.call(rbind,script[[3]]))
 # write.table(res_3, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_Ineichen_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
 write.table(res_3, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_Ineichen_Hawaii.txt",
             sep = "\t", row.names = FALSE, col.names = TRUE)
 
-res_4 <- do.call(rbind,script[[4]])
+res_4 <- do.call(rbind,do.call(rbind,script[[4]]))
 # write.table(res_4, file = "~/Desktop/Drive/research/mvBenchmark/results/numerical_scores_McClear_Hawaii.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
 write.table(res_4, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/numerical_scores_McClear_Hawaii.txt",
