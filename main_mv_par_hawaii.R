@@ -48,11 +48,59 @@ dat <- tibble::add_column(dat, tod = strftime(dat$Time, format = "%H:%M", tz = "
 ns <- ncol(dat)-6 # Number of stations (16) is ncol minus time/zen/Ics/McClear/Ioh/tod columns
 #################################################################################
 
-# Define training and testing data
-month <- seq(10, 4, by = -1)
-mnths = list()
-for(i in 1:(length(month)-2)){ mnths[[i]] <- month[(i-1) + 1:3] } # Test months
-year <- 2011 # Test year
+# Define training data periods (length increases with 3 months on every iteration)
+train_months_seq <- seq(3,15,3) # Intervals of 3 months, starting in March (month 3)
+train_months <- lubridate::month(seq(as.Date("2010-03-01"), as.Date("2011-05-01"), by = "month"))
+train_years <- lubridate::year(seq(as.Date("2010-03-01"), as.Date("2011-05-01"), by = "month"))
+mnths <- years <- list()
+j <- 1
+for(i in train_months_seq){
+  mnths[[j]] <- train_months[1:i] # Training data increases in length
+  years[[j]] <- train_years[1:i]
+  j <- j+1
+}
+
+# Define testing data period (5 months that are fixed)
+te_idx_m <- lubridate::month(seq(as.Date("2011-06-01"), as.Date("2011-10-01"), by = "month")) # 5 months
+te_idx_y <- lubridate::year(seq(as.Date("2011-06-01"), as.Date("2011-10-01"), by = "month"))
+idx_te <- (lubridate::year(dat$Time) %in% te_idx_y & 
+             lubridate::month(dat$Time) %in% te_idx_m) # The test set is fixed
+te_dat <- dat[idx_te,] # Testing data set
+# Prepare testing data and clear-sky expectation
+OBS1 <- list()
+for(k in K){ # Loop over the forecast horizons to shift the entire matrix of observations
+  X <- data.table::shift(x = te_dat[,(ncol(te_dat)-ns+1):ncol(te_dat)], n = k, fill = NA, type = "lead") # Start at 6th column for first station    
+  X <- do.call(what = cbind, X)
+  OBS1[[k]] <- X
+}
+OBS1 <- do.call(cbind,OBS1)
+ICS1 <- data.table::shift(te_dat$Ics,n=K,type="lead"); ICS1 <- do.call(cbind,ICS1) # Create matrix clear-sky irradaince
+ICS2 <- data.table::shift(te_dat$McClear,n=K,type="lead"); ICS2 <- do.call(cbind,ICS2) # Create matrix clear-sky irradaince
+# Assume clear-sky irradiance is identical at each station and repeat it 1..K times for each station:
+ICS1 <- ICS1[,rep(K, each = ns)]
+ICS2 <- ICS2[,rep(K, each = ns)]
+zen <- data.table::shift(te_dat$zen,n=K,type="lead"); zen <- do.call(cbind,zen) # Create zenith mask
+zen <- zen[,rep(K, each = ns)] # 16 stations excluding AP3
+idx_zen <- zen <= zen_angle # Create zenith mask
+OBS1[idx_zen == FALSE] <- NA
+ICS1[idx_zen == FALSE] <- NA
+ICS2[idx_zen == FALSE] <- NA
+# Combine with time, zenith angle and clear-sky irradiance:
+OBS1 <- data.frame(subset(te_dat,select = c("Time","zen","Ics","tod")),OBS1)
+OBS1 <- OBS1[OBS1$zen < zen_angle,] # Remove rows based on zenith
+OBS1 <- OBS1[complete.cases(OBS1),] # Remove rows based on zenith
+OBS1[OBS1==0] <- NA # Check if there are rows with zero values remaining --> these are missing values.
+idx_zero <- complete.cases(OBS1) # Index these rows so we can also subset ICS1 later on.
+# Remove certain rows:
+OBS1 <- OBS1[idx_zero,]
+ICS1 <- data.frame(subset(te_dat,select = c("Time","zen","Ics","tod")),ICS1)
+ICS1 <- ICS1[ICS1$zen < zen_angle,] # Remove rows with zenith angle lower than limit
+ICS1 <- ICS1[complete.cases(ICS1),] # Remove rows with NAs
+ICS1 <- ICS1[idx_zero,] # Remove rows that are zero in the observations OBS1.
+ICS2 <- data.frame(subset(te_dat,select = c("Time","zen","McClear","tod")),ICS2)
+ICS2 <- ICS2[ICS2$zen < zen_angle,] # Remove rows with zenith angle lower than limit
+ICS2 <- ICS2[complete.cases(ICS2),] # Remove rows with NAs
+ICS2 <- ICS2[idx_zero,] # Remove rows that are zero in the observations OBS1.
 
 # Prepare multiprocessing
 cl <- makeCluster(length(mnths))
@@ -61,51 +109,14 @@ registerDoParallel(cl)
 rank_histograms1 = rank_histograms2 <- list() # To store the rank histograms
 num_score_1 = num_score_2 <- list() # To store the numerical scores ES and VS
 z <- 1
-
+set.seed(123) # Set seed for repeatability
 script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE, 
                   .init=list(list(),list(),list(),list()), .packages = 'dplyr') %dopar% { # Loop over the months
                     
-                    idx <- (lubridate::year(dat$Time) %in% year & 
-                              lubridate::month(dat$Time) %in% mnths[[j]]) # This should be the iterable
+                    idx_tr <- (lubridate::year(dat$Time) %in% years[[j]] & 
+                                 lubridate::month(dat$Time) %in% mnths[[j]]) # This should be the iterable
                     
-                    te_dat <- dat[idx,]
-                    tr_dat <- dat[!idx,]
-                    
-                    # Prepare testing data
-                    OBS1 <- list()
-                    for(k in K){ # Loop over the forecast horizons to shift the entire matrix of observations
-                      X <- data.table::shift(x = te_dat[,(ncol(te_dat)-ns+1):ncol(te_dat)], n = k, fill = NA, type = "lead") # Start at 6th column for first station    
-                      X <- do.call(what = cbind, X)
-                      OBS1[[k]] <- X
-                    }
-                    OBS1 <- do.call(cbind,OBS1)
-                    ICS1 <- data.table::shift(te_dat$Ics,n=K,type="lead"); ICS1 <- do.call(cbind,ICS1) # Create matrix clear-sky irradaince
-                    ICS2 <- data.table::shift(te_dat$McClear,n=K,type="lead"); ICS2 <- do.call(cbind,ICS2) # Create matrix clear-sky irradaince
-                    # Assume clear-sky irradiance is identical at each station and repeat it 1..K times for each station:
-                    ICS1 <- ICS1[,rep(K, each = ns)]
-                    ICS2 <- ICS2[,rep(K, each = ns)]
-                    zen <- data.table::shift(te_dat$zen,n=K,type="lead"); zen <- do.call(cbind,zen) # Create zenith mask
-                    zen <- zen[,rep(K, each = ns)] # 16 stations excluding AP3
-                    idx_zen <- zen <= zen_angle # Create zenith mask
-                    OBS1[idx_zen == FALSE] <- NA
-                    ICS1[idx_zen == FALSE] <- NA
-                    ICS2[idx_zen == FALSE] <- NA
-                    # Combine with time, zenith angle and clear-sky irradiance:
-                    OBS1 <- data.frame(subset(te_dat,select = c("Time","zen","Ics","tod")),OBS1)
-                    OBS1 <- OBS1[OBS1$zen < zen_angle,] # Remove rows based on zenith
-                    OBS1 <- OBS1[complete.cases(OBS1),] # Remove rows based on zenith
-                    OBS1[OBS1==0] <- NA # Check if there are rows with zero values remaining --> these are missing values.
-                    idx_zero <- complete.cases(OBS1) # Index these rows so we can also subset ICS1 later on.
-                    # Remove certain rows:
-                    OBS1 <- OBS1[idx_zero,]
-                    ICS1 <- data.frame(subset(te_dat,select = c("Time","zen","Ics","tod")),ICS1)
-                    ICS1 <- ICS1[ICS1$zen < zen_angle,] # Remove rows with zenith angle lower than limit
-                    ICS1 <- ICS1[complete.cases(ICS1),] # Remove rows with NAs
-                    ICS1 <- ICS1[idx_zero,] # Remove rows that are zero in the observations OBS1.
-                    ICS2 <- data.frame(subset(te_dat,select = c("Time","zen","McClear","tod")),ICS2)
-                    ICS2 <- ICS2[ICS2$zen < zen_angle,] # Remove rows with zenith angle lower than limit
-                    ICS2 <- ICS2[complete.cases(ICS2),] # Remove rows with NAs
-                    ICS2 <- ICS2[idx_zero,] # Remove rows that are zero in the observations OBS1.
+                    tr_dat <- dat[idx_tr,]
                     
                     # Prepare training data:
                     CSI1 <- tr_dat %>% select(tail(names(.), ns)) / tr_dat$Ics      # Select only GHI data from stations
@@ -146,7 +157,6 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE,
                     es1 = es2 = vs1 = vs2 <- NULL # Numerical scores
                     
                     for(m in M){
-                      set.seed(123) # Set seed for pseudo random ensemble members
                       i <- 1 # Counter in case a t iteration is skipped 
                       for(t in 1:nrow(OBS1)){ # Loop over the test set
                         ob <- OBS1[t,] # Get the t-th observations
@@ -183,36 +193,41 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE,
                         i <- i + 1
                       }
                       
+                      # Training period string (month year - month year):
+                      train_period_string <-  paste(month.abb[mnths[[j]][1]]," ",
+                                                    years[[j]][1],"-",
+                                                    month.abb[mnths[[j]][length(mnths[[j]])]]," ",
+                                                    years[[j]][length(years[[j]])],sep="")
                       # Rank histograms:
                       avghist1 <- avg.rhist(lst1,m) # Average rank histogram based on Ineichen clear-sky
                       avghist1 <- data.frame(mids=avghist1$mids,counts=avghist1$counts,
                                              members = m,
-                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             months=train_period_string,
                                              prerank="AVG")
                       avghist2 <- avg.rhist(lst2,m) # Average rank histogram based on McClear clear-sky
                       avghist2 <- data.frame(mids=avghist2$mids,counts=avghist2$counts,
                                              members = m,
-                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             months=train_period_string,
                                              prerank="AVG")
                       bdhhist1 <- bd.rhist(lst1,m) # Band depth rank histogram based on Ineichen clear-sky
                       bdhhist1 <- data.frame(mids=bdhhist1$mids,counts=bdhhist1$counts,
                                              members = m,
-                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             months=train_period_string,
                                              prerank="BDH")
                       bdhhist2 <- bd.rhist(lst2,m) # Band depth rank histogram based on McClear clear-sky
                       bdhhist2 <- data.frame(mids=bdhhist2$mids,counts=bdhhist2$counts,
                                              members = m,
-                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             months=train_period_string,
                                              prerank="BDH")
                       msthist1 <- mst.rhist(lst1,m) # Minimum spinning tree rank histogram based on Ineichen clear-sky
                       msthist1 <- data.frame(mids=msthist1$mids,counts=msthist1$counts,
                                              members = m,
-                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             months=train_period_string,
                                              prerank="MST")
                       msthist2 <- mst.rhist(lst2,m) # Minimum spinning tree rank histogram based on McClear clear-sky
                       msthist2 <- data.frame(mids=msthist2$mids,counts=msthist2$counts,
                                              members = m,
-                                             months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""),
+                                             months=train_period_string,
                                              prerank="MST")
                       # Store rank histograms:
                       rank_histograms1[[z]] <- rbind(avghist1,bdhhist1,msthist1)
@@ -220,10 +235,10 @@ script <- foreach(j = 1:length(mnths), .combine='comb', .multicombine=TRUE,
                       # Energy score and variogram score:
                       num_score_1[[z]] <- data.frame(es=mean(do.call(c,es1)),vs=mean(do.call(c,vs1)),
                                                      members = m,
-                                                     months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
+                                                     months=train_period_string)
                       num_score_2[[z]] <- data.frame(es=mean(do.call(c,es2)),vs=mean(do.call(c,vs2)),
                                                      members = m,
-                                                     months=paste(month.abb[mnths[[j]][3]],"-",month.abb[mnths[[j]][1]],sep=""))
+                                                     months=train_period_string)
                       z <- z + 1 # Iterations over ensemble member combinations
                     }
                     
