@@ -397,6 +397,44 @@ for(csi_model in csi_models){
         include.rownames=FALSE, caption.placement = "top")
 }
 
+# Table with ranges of GHI at SURFRAD stations
+# Create list with all years in the data set:
+years <- seq(2015, 2005, by = -1)
+yrs = list()
+for(i in 1:(length(years)-1)){ yrs[[i]] <- years[(i-1) + 1:2] }
+yrs <- yrs %>% purrr::prepend(list(c(2017,2016))) # Include test data
+
+dir <- "~/Google Drive/My Drive/research/multivariateBenchmark/data/" # Working directory path
+station <- c("bon", "dra", "fpk", "gwn", "psu", "sxf", "tbl")
+tz <- c(-5, -7, -6, -5, -4, -5, -6)
+# Loop over the stations and years to extract the range of the data
+res <- list()
+z <- 1
+pb <- txtProgressBar(min = 0, max = length(station)*length(yrs), style = 3)
+for(stn in 1:length(station)){
+  setwd(file.path(dir, station[stn]))# Set directory
+  # SURFRAD
+  surfrad <- read.table(file = "surfrad15_2004-2017.txt", header = TRUE, sep = "\t", colClasses = c("character", rep("numeric",4))) #read data
+  surfrad$Time <-  as.POSIXct(surfrad$Time, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+  surfrad <- surfrad %>% mutate(Time = Time+tz[stn]*3600) # Adjust time zone to local tz
+  surfrad$tod <- strftime(surfrad$Time, format = "%H:%M", tz = "UTC") # Time of day (UTC because tz is set manually)
+  for(j in 1:length(yrs)){
+    select <- which(lubridate::year(surfrad$Time) %in% yrs[[j]])
+    surfrad_fit <- surfrad[select,]
+    ghi_min <- min(surfrad_fit$dw_solar); ghi_max <- max(surfrad_fit$dw_solar); 
+    res[[z]] <- data.frame(#ghi_min=ghi_min, ghi_max=ghi_max,
+      range=paste("[",ghi_min,",",round(ghi_max,0),"]",sep = ""),
+      years=paste(yrs[[j]][2],"-",yrs[[j]][1],sep=""),
+      station=toupper(station[stn]))
+    setTxtProgressBar(pb, z) # Update the progress bar
+    z <- z + 1 # Iterations over stations and years combined
+  }
+}
+df <- do.call(rbind,res)
+df_wide <- df %>% tidyr::pivot_wider(names_from = years, values_from = range)
+print(xtable::xtable(df_wide, digits = 2, caption = "range of ghi"), 
+      include.rownames=FALSE, caption.placement = "top")
+
 # Plot PIT histograms
 pit_histograms <- read.table(file = "pit_histograms.txt", header = TRUE, sep = "\t")
 tmp_long <- pit_histograms[pit_histograms$years %in% c("2010-2011","2011-2012"),]
