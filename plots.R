@@ -11,7 +11,8 @@ library(dplyr)
 #################################################################################
 # Inputs
 #################################################################################
-dir <- "~/Desktop/Drive/research/mvBenchmark/results" # Working directory path
+# dir <- "~/Desktop/Drive/research/mvBenchmark/results/" # Working directory path
+dir <- "~/Google Drive/My Drive/research/multivariateBenchmark/results/" # Working directory path
 setwd(dir)
 plot.size = 8; line.size = 0.1; point.size = 0.6
 #################################################################################
@@ -386,11 +387,13 @@ ggsave(filename = "~/Desktop/Drive/research/mvBenchmark/paper/images/data_analys
 #################################################################################
 
 # Table with time CRPS scores organized by year and station.
-csi_models <- c("Ineichen","McClear")
+csi_models <- c("Ineichen","McClear","REST2")
+crps <- read.table(file = "crps.txt", header = TRUE, sep = "\t")
 
 for(csi_model in csi_models){
-  tmp_long <- read.table(file = paste("crps_",csi_model,".txt",sep = ""),
-                         header = TRUE, sep = "\t")
+  # tmp_long <- read.table(file = paste("crps_",csi_model,".txt",sep = ""),
+  #                        header = TRUE, sep = "\t")
+  tmp_long <- crps %>% filter(model == csi_model)
   tmp_wide <- reshape(tmp_long,idvar = "station",timevar = "years",direction = "wide", drop = "model")
   colnames(tmp_wide) <- stringr::str_replace_all(colnames(tmp_wide),"crps.","")
   print(xtable::xtable(tmp_wide, digits = 2, caption = paste("crps of",csi_model)), 
@@ -436,13 +439,20 @@ print(xtable::xtable(df_wide, digits = 2, caption = "range of ghi"),
       include.rownames=FALSE, caption.placement = "top")
 
 # Plot PIT histograms
-pit_histograms <- read.table(file = "pit_histograms.txt", header = TRUE, sep = "\t")
-tmp_long <- pit_histograms[pit_histograms$years %in% c("2010-2011","2011-2012"),]
-years <- stringr::str_replace_all(as.character(tmp_long$years),"20","'") # Abbreviate the years
-tmp_long$years <- years
+pit_histograms <- read.table(file = "pit_histograms_clima.txt", header = TRUE, sep = "\t")
+tmp_long <- pit_histograms[pit_histograms$years %in% c("2011-2012"),] # "2010-2011",
+# years <- stringr::str_replace_all(as.character(tmp_long$years),"20","'") # Abbreviate the years
+# tmp_long$years <- years
+tmp <- pit_histograms %>% filter(years=="2014-2015" & station=="BON" & model=="Ineichen")
+n <- sum(tmp$counts) # Number of forecast-observation pairs
+up <- qbinom(p = 0.99, size = n, prob = 1/21) # Upper limit of the consistency bands
+down <- qbinom(p = 0.01, size = n, prob = 1/21) # Lower limit of the consistency bands
+
 p <- ggplot(data = tmp_long, aes(x=mids,y=counts)) +
   geom_bar(stat = "identity") +
-  facet_grid(station+years~model,scales = "free_y") +
+  geom_hline(yintercept = up, linetype = "dashed", size = line.size, colour = "red") +
+  geom_hline(yintercept = down, linetype = "dashed", size = line.size, colour = "red") +
+  facet_grid(model~station+years,scales = "free_y") +
   theme_bw() +
   theme(plot.margin = unit(c(0.2,0.2,0,0), "lines"),
         axis.title = element_blank(),
@@ -454,14 +464,14 @@ p <- ggplot(data = tmp_long, aes(x=mids,y=counts)) +
         panel.spacing = unit(0, "mm"),
         panel.grid = element_blank()) 
 p
-ggsave(filename = "~/Desktop/Drive/research/mvBenchmark/paper/images/pit_histograms.pdf",
-       plot = p, device = "pdf", units = "cm", height = 17, width = 8.5) 
+ggsave(filename = "~/Google Drive/My Drive/research/multivariateBenchmark/paper/images/pit_histograms.pdf",
+       plot = p, device = "pdf", units = "cm", height = 6, width = 17) 
 
 #################################################################################
 # Multivariate
 #################################################################################
 
-csi_models <- c("Ineichen","McClear")
+csi_models <- c("Ineichen","McClear","REST2")
 scores <- c("es","vs")
 
 # Table with time energy and variogram scores organized by year and station.
@@ -485,7 +495,7 @@ for(csi_model in csi_models){
 }
 
 # Plot multivariate rank histograms
-csi_model <- "McClear" # "McClear" or "Ineichen"
+csi_model <- "McClear" # "McClear" or "Ineichen" or "REST2"
 
 tmp_long <- read.table(file = paste("rank_histograms_",csi_model,".txt",sep = ""),
                        header = TRUE, sep = "\t")
@@ -507,9 +517,9 @@ p <- ggplot(data = tmp_long, aes(x=mids,y=counts)) +
         panel.spacing = unit(0, "mm"),
         panel.grid = element_blank()) 
 p
-ggsave(filename = paste("~/Desktop/Drive/research/mvBenchmark/paper/images/rankhistogram_",csi_model,".pdf",sep = ""),
+ggsave(filename = paste("~/Google Drive/My Drive/research/multivariateBenchmark/paper/images/rankhistogram_",csi_model,".pdf",sep = ""),
        # plot = p, device = "pdf", units = "cm", height = 17, width = 8.5) 
-       plot = p, device = "pdf", units = "cm", height = 6, width = 17) 
+       plot = p, device = "pdf", units = "cm", height = 5, width = 17) 
 
 # Plot multivariate rank histograms for Hawaii
 csi_model <- "McClear" # "McClear" or "Ineichen"

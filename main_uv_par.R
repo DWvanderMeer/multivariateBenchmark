@@ -21,6 +21,7 @@ comb <- function(x, ...) {
 # dir <- "~/Desktop/Drive/research/mvBenchmark/data" # Working directory path
 # dir <- "C:/Users/denva787/Documents/dennis/mvBenchmark/data" # Working directory path (server)
 dir <- "~/Google Drive/My Drive/research/multivariateBenchmark/data/" # Directory path to SURFRAD data
+dir <- "C:/Users/dennis.van_der_meer/Documents/multivariateBenchmark/data"
 station <- c("bon", "dra", "fpk", "gwn", "psu", "sxf", "tbl")#
 tz <- c(-5, -7, -6, -5, -4, -5, -6)
 K <- 0 # forecast horizon (CH-PeEn is independent of horizon)
@@ -101,7 +102,9 @@ script <- foreach(stn = 1:length(station), .combine='comb', .multicombine=TRUE,
                       for(t in 1:nrow(OBS1)){ # Loop over the test set
                         ob <- OBS1[t,] # Get the t-th observations
                         ci1 <- ICS1[ICS1$Time == ob$Time,]; ci2 <- ICS2[ICS2$Time == ob$Time,]; ci3 <- ICS3[ICS3$Time == ob$Time,] # Get the clear-sky irradiance for the coming observations
-                        fc1 <- FCS1[which(time_fit==ob$tod),]; fc2 <- FCS2[which(time_fit==ob$tod),]; fc3 <- FCS3[which(time_fit==ob$tod),] # Get the historical 1..K observations.
+                        # fc1 <- FCS1[which(time_fit==ob$tod),]; fc2 <- FCS2[which(time_fit==ob$tod),]; fc3 <- FCS3[which(time_fit==ob$tod),] # Get the historical 1..K observations.
+                        # Naive climatology:
+                        fc1 <- FCS1; fc2 <- FCS2; fc3 <- FCS3 # Get the historical 1..K observations.
                         
                         ob <- ob$OBS1   # Take only the observation
                         ci1 <- ci1$ICS1 # Take only the clear-sky irradiance 
@@ -165,14 +168,15 @@ stopCluster(cl)
 proc.time() - ptm
 
 save_dir <- "~/Google Drive/My Drive/research/multivariateBenchmark/results/"
+save_dir <- "C:/Users/dennis.van_der_meer/Documents/multivariateBenchmark/results/"
 pit_hist <- do.call(rbind,do.call(rbind,script[[1]]))
-write.table(pit_hist, file = paste(save_dir,"pit_histograms.txt",sep = ""),
+write.table(pit_hist, file = paste(save_dir,"pit_histograms_clima.txt",sep = ""),
             sep = "\t", row.names = FALSE, col.names = TRUE)
 # write.table(pit_hist, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/pit_histograms.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
 
 crps <- do.call(rbind,do.call(rbind,script[[2]]))
-write.table(crps, file = paste(save_dir,"crps.txt",sep = ""),
+write.table(crps, file = paste(save_dir,"crps_clima.txt",sep = ""),
             sep = "\t", row.names = FALSE, col.names = TRUE)
 # write.table(crps, file = "C:/Users/denva787/Documents/dennis/mvBenchmark/results/crps.txt",
 #             sep = "\t", row.names = FALSE, col.names = TRUE)
